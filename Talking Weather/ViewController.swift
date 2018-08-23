@@ -20,7 +20,6 @@ class ViewController: UIViewController {
     
     var timer: Timer?
     
-    var isIntro = true
     
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))!
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -37,6 +36,7 @@ class ViewController: UIViewController {
         requestSpeachAutorization()
         determineMyCurrentLocation()
         synthesizer.delegate = self
+        self.speekIntro()
     }
     
     func determineMyCurrentLocation() {
@@ -52,15 +52,19 @@ class ViewController: UIViewController {
     
     
     func requestSpeachAutorization() {
-        let status = SFSpeechRecognizer.authorizationStatus()
-        if status == .notDetermined || status == .denied || status == .restricted {
-            DispatchQueue.main.async {
-                let alert = UIAlertController(title: "Access to mic and voice recognition is needed", message: "Please enable it in settings", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "OK", style: .cancel, handler: { (action) in
-                    self.dismiss(animated: true, completion: nil)
-                }))
-                
-                self.present(alert, animated: true, completion: nil)
+        SFSpeechRecognizer.requestAuthorization { status in
+            OperationQueue.main.addOperation {
+                if status == .notDetermined || status == .denied || status == .restricted {
+                    DispatchQueue.main.async {
+                        let alert = UIAlertController(title: "Access to mic and voice recognition is needed", message: "Please enable it in settings", preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "OK", style: .cancel, handler: { (action) in
+                            self.dismiss(animated: true, completion: nil)
+                            self.requestLocationAutorization()
+                        }))
+                        
+                        self.present(alert, animated: true, completion: nil)
+                    }
+                }
             }
         }
     }
@@ -68,8 +72,8 @@ class ViewController: UIViewController {
     func requestLocationAutorization() {
         let status = CLLocationManager.authorizationStatus()
         if status == .notDetermined || status == .denied || status == .restricted {
-            DispatchQueue.main.async {
-                let alert = UIAlertController(title: "Accxess to GPS is needed", message: "Please enable it in settings", preferredStyle: .alert)
+            OperationQueue.main.addOperation {
+                let alert = UIAlertController(title: "Access to GPS is needed", message: "Please enable it in settings", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: "OK", style: .cancel, handler: { (action) in
                     self.dismiss(animated: true, completion: nil)
                 }))
@@ -92,10 +96,10 @@ class ViewController: UIViewController {
             } catch {
                 print("Failed to set record audioSession mode")
             }
-       
+            
             recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
             
-//            guard let inputNode = audioEngine.inputNode else { fatalError("There was a problem with the audio engine") }
+            //            guard let inputNode = audioEngine.inputNode else { fatalError("There was a problem with the audio engine") }
             guard let recognitionRequest = recognitionRequest else { fatalError("Unable to create the recognition request") }
             let inputNode = audioEngine.inputNode
             
@@ -150,7 +154,7 @@ class ViewController: UIViewController {
                 
             }
         }
-
+        
     }
     
     @objc func timerEnded() {
@@ -170,7 +174,7 @@ class ViewController: UIViewController {
         for segment in speechResult.bestTranscription.segments {
             let best = speechResult.bestTranscription.formattedString
             let indexTo = best.index(best.startIndex, offsetBy: segment.substringRange.location)
-
+            
             lastString = best.substring(from: indexTo)
             
             isWeatherCommand = (lastString.lowercased().contains("weather") || lastString.lowercased().contains("forecast"))
@@ -183,7 +187,7 @@ class ViewController: UIViewController {
                 speekDidntUnderstood()
             }
         } else
-            {
+        {
             do {
                 try self.startRecording()
                 self.stateLabel.text = "Waiting for orders"
@@ -277,7 +281,7 @@ extension ViewController: CLLocationManagerDelegate {
             }
         }
         
-
+        
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error)
@@ -289,10 +293,6 @@ extension ViewController: CLLocationManagerDelegate {
 
 extension ViewController: AVSpeechSynthesizerDelegate {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        if isIntro {
-            isIntro = false
-            return
-        }
         do {
             speechResult = SFSpeechRecognitionResult()
             try self.startRecording()
